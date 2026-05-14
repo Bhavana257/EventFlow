@@ -1,34 +1,36 @@
+# app/models/database.py
 from os import getenv
 from time import sleep
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Load database URL from environment variable
 DATABASE_URL = getenv(
     "DATABASE_URL", "postgresql://user:password@localhost/orders_db"
 )
 
+MAX_RETRIES = 10
+RETRY_DELAY = 5
 
-MAX_RETRIES = 5
+engine = create_engine(DATABASE_URL)
 
 for i in range(MAX_RETRIES):
     try:
-        engine = create_engine(DATABASE_URL)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print(" Database connected successfully.")
         break
     except OperationalError:
-        print(f"Database not ready, retrying ({i+1}/{MAX_RETRIES})...")
-        sleep(5)
+        print(f" Database not ready, retrying ({i+1}/{MAX_RETRIES})...")
+        sleep(RETRY_DELAY)
+else:
+    raise RuntimeError(" Could not connect to the database after max retries.")
 
-# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Base class for models
 Base = declarative_base()
 
 
-# Dependency to get a DB session
 def get_db():
     db = SessionLocal()
     try:
